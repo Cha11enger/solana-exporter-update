@@ -1,0 +1,47 @@
+default:
+  #image: repo.reddfive.com/docker-base-images/docker:latest
+
+include:
+- project: 'devops/ci-templates'
+  ref: 'master'
+  file:
+    - 'build-publish-docker.yaml'
+    - 'configure-upload-download-jfrog.yaml'
+  
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      variables:
+        ENV_REPO: /build-artifacts-stg/staking/sol
+    - if: $CI_PIPELINE_SOURCE != 'merge_request_event'
+      when: always
+
+variables:
+  SOLANA_EXPORTER_VERSION: "master"
+  DOCKER_VERSION: "foundry-solana-exporter-$SOLANA_EXPORTER_VERSION"
+  ENV_REPO: /build-artifacts-dev/staking/sol
+  DOCKER_PATH: "repo.reddfive.com/docker-app-stg/staking/sol"
+
+services:
+  - docker:20.10.8-dind
+
+stages:
+  - build
+  - upload-artifact
+  - build-publish-docker
+
+build-solana-exporter:
+  stage: build
+  image: docker:20.10.8
+  script:
+    - ls -la
+    - docker build -t $DOCKER_VERSION -f solana-exporter.Dockerfile .
+
+publish-container-image:
+  stage: build-publish-docker
+  extends: .build-publish-docker
+  variables:
+    REPOPATH: $DOCKER_PATH
+    ADDITIONAL_TAGS: $DOCKER_VERSION

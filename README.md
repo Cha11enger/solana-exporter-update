@@ -1,2 +1,1 @@
-# solana-exporter-update
-metrics to monitor solana node
+README for project

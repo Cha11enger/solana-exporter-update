@@ -1,0 +1,56 @@
+default:
+  image: repo.reddfive.com/docker-trusted-images/node:latest
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Container-Scanning.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - project: 'devops/ci-templates'
+    ref: 'master'
+    file:
+      - 'branch-sanitizer.yaml'
+      - 'build-publish-docker.yaml'
+  
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      variables:
+        ENV_DOCKER_REPO: repo.reddfive.com/docker-app-stg/staking/sol
+    - if: $CI_PIPELINE_SOURCE != 'merge_request_event'
+      when: always
+
+variables:
+  SOLANA_EXPORTER_VERSION: "master"
+  ENV_DOCKER_REPO: repo.reddfive.com/docker-app-dev/staking/sol
+
+stages:
+  - build
+  - upload
+  - build-publish-docker
+  - test
+
+publish-container-image-solana-exporter:
+  stage: build-publish-docker
+  extends: .build-publish-docker
+  variables:
+    DOCKER_PATH: $ENV_DOCKER_REPO/solana-exporter
+    DOCKER_VERSION: "foundry-solana-exporter-$SOLANA_EXPORTER_VERSION"
+    DOCKERFILE_PATH: solana-exporter.Dockerfile
+    REPOPATH: $DOCKER_PATH
+    ADDITIONAL_TAGS: $DOCKER_VERSION
+  when: on_success
+
+.scanners-matrix:
+  parallel:
+    matrix:
+      - DOCKERFILE_PATHS: 
+          - $ENV_DOCKER_REPO/solana-exporter
+
+container_scanning:
+  extends: .scanners-matrix
+  variables:
+    CI_APPLICATION_TAG: $CI_COMMIT_SHORT_SHA
+    CI_REGISTRY_IMAGE: $DOCKERFILE_PATHS
